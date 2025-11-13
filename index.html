@@ -295,12 +295,155 @@
             font-weight: 600;
         }
 
+        .tour-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: none;
+        }
+
+        .tour-overlay.active {
+            display: block;
+        }
+
+        .tour-spotlight {
+            position: absolute;
+            border: 3px solid #bb86fc;
+            border-radius: 8px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+            transition: all 0.3s ease;
+            z-index: 1001;
+        }
+
+        .tour-tooltip {
+            position: fixed;
+            background: linear-gradient(135deg, #2a2a40 0%, #1f1f35 100%);
+            border: 2px solid #bb86fc;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 400px;
+            width: calc(100% - 40px);
+            max-height: 80vh;
+            overflow-y: auto;
+            z-index: 1002;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .tour-tooltip h3 {
+            color: #bb86fc;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .tour-tooltip p {
+            color: #e0e0e0;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .tour-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .tour-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .tour-btn.primary {
+            background: #bb86fc;
+            color: #1a1a2e;
+        }
+
+        .tour-btn.secondary {
+            background: #444;
+            color: #e0e0e0;
+        }
+
+        .tour-btn:hover {
+            transform: translateY(-1px);
+            opacity: 0.9;
+        }
+
+        .tour-progress {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .help-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background: #bb86fc;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(187, 134, 252, 0.4);
+            transition: all 0.3s;
+            z-index: 999;
+        }
+
+        .help-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(187, 134, 252, 0.6);
+        }
+
         @media (max-width: 1200px) {
             .team-grid {
                 grid-template-columns: 1fr;
             }
             .summary-grid {
                 grid-template-columns: repeat(2, 1fr);
+            }
+            .tour-tooltip {
+                max-width: calc(100% - 40px);
+                padding: 15px;
+            }
+            .tour-tooltip h3 {
+                font-size: 16px;
+            }
+            .tour-tooltip p {
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .tour-tooltip {
+                padding: 12px;
+            }
+            .tour-tooltip h3 {
+                font-size: 14px;
+                margin-bottom: 8px;
+            }
+            .tour-tooltip p {
+                font-size: 12px;
+                margin-bottom: 12px;
+            }
+            .tour-btn {
+                padding: 6px 12px;
+                font-size: 11px;
             }
         }
     </style>
@@ -386,6 +529,13 @@
                 <div class="info-item"><span>Epi Mod:</span><span class="info-value">+20 FM</span></div>
             </div>
         </div>
+
+        <button class="help-btn" onclick="startTour()" title="Start Tour">?</button>
+    </div>
+
+    <div class="tour-overlay" id="tourOverlay">
+        <div class="tour-spotlight" id="tourSpotlight"></div>
+        <div class="tour-tooltip" id="tourTooltip"></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -515,25 +665,231 @@
         }
 
         function exportAsImage() {
-            var container = document.querySelector('.container');
-            
-            html2canvas(container, {
+            var maxCost = parseInt(document.getElementById('customMax').value) || 0;
+            var tier = document.getElementById('tier').value;
+            var teamTotal = 0;
+            var summaryData = [];
+
+            for (var i = 1; i <= 3; i++) {
+                var charName = document.getElementById('char' + i + '-name').value || 'Character ' + i;
+                var charTotal = 0;
+                var charItems = [];
+
+                for (var j = 0; j < fields.length; j++) {
+                    var field = fields[j];
+                    var count = parseInt(document.getElementById('char' + i + '-' + field.key).value) || 0;
+                    if (count > 0) {
+                        var cost = count * field.cost;
+                        charTotal += cost;
+                        charItems.push({
+                            label: field.label,
+                            count: count,
+                            cost: field.cost,
+                            total: cost
+                        });
+                    }
+                }
+
+                teamTotal += charTotal;
+                summaryData.push({
+                    name: charName,
+                    total: charTotal,
+                    items: charItems,
+                    remaining: maxCost - charTotal,
+                    isOver: charTotal > maxCost
+                });
+            }
+
+            var teamLimit = maxCost * 3;
+            var teamRemaining = teamLimit - teamTotal;
+            var teamOver = teamRemaining < 0;
+
+            var summaryHTML = '<div style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 30px; min-width: 800px;">' +
+                '<div style="background: rgba(30, 30, 50, 0.95); border-radius: 12px; padding: 20px; border: 2px solid rgba(138, 43, 226, 0.5);">' +
+                '<h1 style="color: #bb86fc; text-align: center; margin-bottom: 10px; font-size: 28px;">CZN Save Data Summary</h1>' +
+                '<p style="color: #999; text-align: center; margin-bottom: 20px; font-size: 14px;">Tier ' + tier + ' - Generated on ' + new Date().toLocaleDateString() + '</p>' +
+                '<div style="background: #2a2a40; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #444;">' +
+                '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; text-align: center;">' +
+                '<div><div style="color: #aaa; font-size: 12px; margin-bottom: 5px;">Total FM Used</div><div style="color: #bb86fc; font-size: 24px; font-weight: bold;">' + teamTotal + '</div></div>' +
+                '<div><div style="color: #aaa; font-size: 12px; margin-bottom: 5px;">FM Limit</div><div style="color: #bb86fc; font-size: 24px; font-weight: bold;">' + teamLimit + '</div></div>' +
+                '<div><div style="color: #aaa; font-size: 12px; margin-bottom: 5px;">FM Remaining</div><div style="color: ' + (teamOver ? '#f44336' : '#4caf50') + '; font-size: 24px; font-weight: bold;">' + teamRemaining + '</div></div>' +
+                '<div><div style="color: #aaa; font-size: 12px; margin-bottom: 5px;">Team Status</div><div style="color: ' + (teamOver ? '#f44336' : '#4caf50') + '; font-size: 24px; font-weight: bold;">' + (teamOver ? '✗ OVER' : '✓ OK') + '</div></div>' +
+                '</div></div>';
+
+            for (var k = 0; k < summaryData.length; k++) {
+                var char = summaryData[k];
+                if (char.items.length === 0) continue;
+
+                summaryHTML += '<div style="background: #2a2a40; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #444;">' +
+                    '<div style="border-bottom: 2px solid #bb86fc; padding-bottom: 10px; margin-bottom: 15px;">' +
+                    '<h2 style="color: #bb86fc; margin-bottom: 5px; font-size: 20px;">' + char.name + '</h2>' +
+                    '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                    '<span style="color: #aaa; font-size: 14px;">FM Usage: <strong style="color: ' + (char.isOver ? '#f44336' : '#4caf50') + ';">' + char.total + ' / ' + maxCost + '</strong></span>' +
+                    '<span style="color: ' + (char.isOver ? '#f44336' : '#4caf50') + '; font-size: 14px; font-weight: bold;">' + (char.isOver ? char.remaining + ' FM OVER' : char.remaining + ' FM left') + '</span>' +
+                    '</div></div>' +
+                    '<div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; color: #e0e0e0; font-size: 13px;">' +
+                    '<div style="color: #bb86fc; font-weight: bold;">Card Type</div>' +
+                    '<div style="color: #bb86fc; font-weight: bold; text-align: center;">Count</div>' +
+                    '<div style="color: #bb86fc; font-weight: bold; text-align: center;">Unit Cost</div>' +
+                    '<div style="color: #bb86fc; font-weight: bold; text-align: right;">Total FM</div>';
+
+                for (var m = 0; m < char.items.length; m++) {
+                    var item = char.items[m];
+                    summaryHTML += '<div>' + item.label + '</div>' +
+                        '<div style="text-align: center;">' + item.count + '</div>' +
+                        '<div style="text-align: center;">' + item.cost + ' FM</div>' +
+                        '<div style="text-align: right; font-weight: bold;">' + item.total + ' FM</div>';
+                }
+
+                summaryHTML += '</div></div>';
+            }
+
+            summaryHTML += '<div style="margin-top: 20px; padding: 15px; background: rgba(187, 134, 252, 0.1); border-radius: 8px; border: 1px solid #bb86fc; text-align: center; color: #aaa; font-size: 12px;">' +
+                'Generated by CZN Save Data Calculator | asmod3ous.github.io/czn' +
+                '</div></div></div>';
+
+            var summaryWindow = document.createElement('div');
+            summaryWindow.innerHTML = summaryHTML;
+            summaryWindow.style.position = 'absolute';
+            summaryWindow.style.left = '-9999px';
+            document.body.appendChild(summaryWindow);
+
+            html2canvas(summaryWindow, {
                 backgroundColor: '#1a1a2e',
                 scale: 2,
                 logging: false,
-                useCORS: true
+                useCORS: true,
+                width: 860
             }).then(function(canvas) {
                 var link = document.createElement('a');
                 var timestamp = new Date().toISOString().slice(0, 10);
-                var tier = document.getElementById('tier').value;
                 link.download = 'CZN-Team-Tier' + tier + '-' + timestamp + '.jpg';
                 link.href = canvas.toDataURL('image/jpeg', 0.95);
                 link.click();
+                document.body.removeChild(summaryWindow);
             });
         }
 
         initTeam();
         calculate();
+
+        var tourSteps = [
+            {
+                element: '.header',
+                title: 'Welcome to CZN Save Data Calculator! 👋',
+                text: 'This tool helps you manage Faint Memory (FM) for your 3-character team in Chaos Zero Nightmare. Let\'s take a quick tour!',
+                position: 'bottom'
+            },
+            {
+                element: '.controls-row',
+                title: 'Set Your Tier Level 🎯',
+                text: 'Select your current Chaos Manifestation tier (1-10). Each tier has different FM limits. Tier 1 starts at 30 FM, and each tier adds +10 FM.',
+                position: 'bottom'
+            },
+            {
+                element: '.team-summary',
+                title: 'Team Summary 📊',
+                text: 'See your entire team\'s FM usage at a glance. The calculator shows total FM used, your limit (3x individual limit), remaining FM, and overall status.',
+                position: 'bottom'
+            },
+            {
+                element: '.character-card',
+                title: 'Character Cards 🎮',
+                text: 'Each character has their own card. Enter the character name at the top, then input how many of each card type you have. The progress bar shows your FM usage vs. limit.',
+                position: 'bottom'
+            },
+            {
+                element: '.inputs-grid',
+                title: 'Input Your Cards 📝',
+                text: 'Enter the count for each card type. The 3-column layout shows: Card Type | Count | FM Cost. As you type, the calculator updates in real-time!',
+                position: 'top'
+            },
+            {
+                element: '.info-section',
+                title: 'Quick Reference 📋',
+                text: 'This section shows all FM costs at a glance. Remember: 1st removal/dupe is FREE (0 FM), and modifiers like Epiphany add extra FM cost.',
+                position: 'top'
+            },
+            {
+                element: '.controls-row',
+                title: 'Action Buttons 🔧',
+                text: 'Reset All clears everything. Reset Counts keeps character names but clears numbers. Export JPG creates a clean summary of your non-zero values!',
+                position: 'bottom'
+            }
+        ];
+
+        var currentStep = 0;
+
+        function startTour() {
+            currentStep = 0;
+            document.getElementById('tourOverlay').classList.add('active');
+            showTourStep(currentStep);
+            localStorage.setItem('czn-tour-completed', 'false');
+        }
+
+        function showTourStep(step) {
+            if (step >= tourSteps.length) {
+                endTour();
+                return;
+            }
+
+            var stepData = tourSteps[step];
+            var element = document.querySelector(stepData.element);
+            var spotlight = document.getElementById('tourSpotlight');
+            var tooltip = document.getElementById('tourTooltip');
+
+            if (!element) {
+                nextStep();
+                return;
+            }
+
+            var rect = element.getBoundingClientRect();
+            spotlight.style.top = (rect.top - 10) + 'px';
+            spotlight.style.left = (rect.left - 10) + 'px';
+            spotlight.style.width = (rect.width + 20) + 'px';
+            spotlight.style.height = (rect.height + 20) + 'px';
+
+            var tooltipHTML = '<h3>' + stepData.title + '</h3>' +
+                '<p>' + stepData.text + '</p>' +
+                '<div class="tour-buttons">' +
+                '<button class="tour-btn secondary" onclick="skipTour()">Skip Tour</button>' +
+                (step > 0 ? '<button class="tour-btn secondary" onclick="prevStep()">Back</button>' : '') +
+                '<button class="tour-btn primary" onclick="nextStep()">' + 
+                (step === tourSteps.length - 1 ? 'Finish' : 'Next') + '</button>' +
+                '</div>' +
+                '<div class="tour-progress">Step ' + (step + 1) + ' of ' + tourSteps.length + '</div>';
+
+            tooltip.innerHTML = tooltipHTML;
+
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function nextStep() {
+            currentStep++;
+            showTourStep(currentStep);
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                showTourStep(currentStep);
+            }
+        }
+
+        function skipTour() {
+            endTour();
+        }
+
+        function endTour() {
+            document.getElementById('tourOverlay').classList.remove('active');
+            localStorage.setItem('czn-tour-completed', 'true');
+        }
+
+        if (!localStorage.getItem('czn-tour-completed')) {
+            setTimeout(function() {
+                startTour();
+            }, 1000);
+        }
     </script>
 </body>
 </html>
